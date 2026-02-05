@@ -50,6 +50,10 @@ output_file = os.path.join(
 output_tmp_file = f"{output_file}.tmp"
 print(f"Output file: {output_file}")
 
+driver = None
+
+products = []
+
 ######################################################################
 
 
@@ -105,13 +109,22 @@ def export_product(file_name, product):
         )
 
 
-def store_product(product_id, product_name, product_price, category1, category2, is_on_promotion, product_url, output_file):
+def store_product(product_id, product_name, product_price, category1, category2, category3, is_on_promotion, product_url, output_file):
+    existing_name = False
     for product in products:
         if product["name"] == product_name:
-            return False
+            existing_name = True
+            if product["id"] == product_id:
+                return False
+    if existing_name:
+        print(
+            f"{product_id} - {product_name} - {product_price} - {is_on_promotion} - Existing name")
+    else:
+        print(f"{product_id} - {product_name} - {product_price} - {is_on_promotion}")
+
     products.append({
-        "name": product_name,
-        "price": product_price
+        "id": product_id,
+        "name": product_name
     })
     export_product(output_file, {
         "postal_code": cp,
@@ -121,7 +134,8 @@ def store_product(product_id, product_name, product_price, category1, category2,
         "is_on_promotion": is_on_promotion,
         "url": product_url,
         "category_name_1": category1,
-        "category_name_2": category2
+        "category_name_2": category2,
+        "category_name_3": category3
     })
 
     return True
@@ -175,9 +189,7 @@ def scrap_products(driver, category1, category2, output_file):
             is_on_promotion = False
 
         if product_name and product_price:
-            if store_product(product_id, product_name, product_price, category1, category2, is_on_promotion, product_url, output_file):
-                print(
-                    f"{product_id} - {product_name} - {product_price} - {is_on_promotion}")
+            if store_product(product_id, product_name, product_price, category1, category2, None, is_on_promotion, product_url, output_file):
                 products_scrapped += 1
 
     return products_scrapped
@@ -196,10 +208,24 @@ def reject_cookies(driver):
         pass
 
 
-def navigate(driver, url):
-    driver.get(url)
-    time.sleep(5)
-    reject_cookies(driver)
+def navigate(url):
+    global driver
+    last_exception = None
+    for attempt in range(10):
+        try:
+            driver = create_driver()
+            driver.get(url)
+            time.sleep(10)
+            reject_cookies(driver)
+            set_cp(driver, cp)
+            return
+        except Exception as e:
+            print(f"!!! Attempt {attempt+1}/10 failed in navigate: {e}")
+            last_exception = e
+            time.sleep(60)
+    print("!!! Failed to create driver and navigate after 10 attempts.")
+    if last_exception:
+        raise last_exception
 
 
 def find_category_1_elements(driver):
@@ -216,9 +242,10 @@ def find_category_1_elements(driver):
         exit(1)
 
 
-def scrap_categories(driver, products, output_file):
+def scrap_categories(products, output_file):
+    global driver
     try:
-        navigate(driver, "https://www.dia.es/")
+        navigate("https://www.dia.es/")
         try:
             # <button data-test-id="mobile-category-button" class="category-button__mobile dia-icon-dehaze" aria-label="categories list menú button">
             menu_button = driver.find_element(
@@ -299,21 +326,23 @@ def scrap_categories(driver, products, output_file):
 
             category1_element_count += 1
 
-        category_count = 0
-        for category in categories:
+        i = 0
+        while i < len(categories):
             try:
-                # if category3['name'] starts with "Ver tod" skip
+                exception_count = 0
+                category = categories[i]
+
                 if category['category2_name'].startswith("Todo"):
+                    i += 1
                     continue
 
-                category_count += 1
                 print(f"Navigating to {category['category2_url']}")
-                navigate(driver, category['category2_url'])
+                navigate(category['category2_url'])
 
                 print(f"\n**************************************************")
                 print(f"Category1 {category['category1_name']}")
                 print(f"Category2 {category['category2_name']}")
-                print(f"Count {category_count}/{len(categories)}")
+                print(f"Count {i + 1}/{len(categories)}")
                 print(f"**************************************************\n")
 
                 page = 0
@@ -325,18 +354,20 @@ def scrap_categories(driver, products, output_file):
                     print(f"--------------------------------------------------")
                     print(f"Category1 {category['category1_name']}")
                     print(f"Category2 {category['category2_name']}")
-                    print(f"Category count {category_count}/{len(categories)}")
+                    print(f"Category count {i + 1}/{len(categories)}")
                     print(
                         f"{products_scrapped} products scrapped in page {page} - scroll {scroll}")
                     print(f"--------------------------------------------------")
 
                     scroll_position = driver.execute_script(
                         "return window.pageYOffset;")
-                    driver.find_element(
-                        By.TAG_NAME, 'body').send_keys(Keys.PAGE_DOWN)
+                    # remote driver does not support Keys.PAGE_DOWN
+                    driver.execute_script(
+                        "window.scrollBy(0, window.innerHeight);")
                     time.sleep(1)
-                    driver.find_element(
-                        By.TAG_NAME, 'body').send_keys(Keys.PAGE_DOWN)
+                    # remote driver does not support Keys.PAGE_DOWN
+                    driver.execute_script(
+                        "window.scrollBy(0, window.innerHeight);")
                     time.sleep(1)
                     new_scroll_position = driver.execute_script(
                         "return window.pageYOffset;")
@@ -349,9 +380,17 @@ def scrap_categories(driver, products, output_file):
                         time.sleep(5)
                         scroll += 1
 
+                i += 1
+                exception_count = 0
+
             except Exception as e:
-                print("!!! Error scrapping category")
-                # print(e)
+                print("!!! Error scrapping category.")
+                print(e)
+                exception_count += 1
+                if exception_count > 10:
+                    print("Too many exceptions, exiting")
+                    exit(1)
+                print(f"Retry scrapping category #{exception_count}")
                 continue
 
         print(f"\n**************************************************")
@@ -368,7 +407,6 @@ def scrap_categories(driver, products, output_file):
 
 def set_cp(driver, cp):
     try:
-        navigate(driver, "https://www.dia.es/")
         # <div class="postal-code-button" data-test-id="postal-code-btn" icontext="08960">
         cp_input = driver.find_element(
             By.XPATH, '//div[@data-test-id="postal-code-btn"]')
@@ -395,30 +433,57 @@ def set_cp(driver, cp):
 ######################################################################
 
 
+def create_driver():
+    try:
+        global driver
+
+        if driver is not None:
+            driver.quit()
+            driver = None
+
+        chrome_options = Options()
+        chrome_options.add_argument("--headless")
+        chrome_options.add_argument("--lang=es-ES")
+        chrome_options.add_argument("--incognito")
+        chrome_options.add_argument("--force-device-scale-factor=0.3")
+        chrome_options.add_argument(
+            "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36"
+        )
+        chrome_options.add_argument(
+            "--disable-blink-features=AutomationControlled")
+        chrome_options.add_argument("--disable-infobars")
+
+        # Disable images to speed up loading and save BrightData bandwidth
+        chrome_prefs = {
+            "profile.default_content_setting_values": {
+                "images": 2  # 2 significa que les imatges no es carregaran
+            }
+        }
+        chrome_options.add_experimental_option("prefs", chrome_prefs)
+
+        webdriver_url = f"https://{os.environ['PROXY_USERNAME']}:{os.environ['PROXY_PASSWORD']}@{os.environ['PROXY_HOST']}:{os.environ['PROXY_PORT']}"
+        chrome_options.add_argument('--ignore-certificate-errors')
+        chrome_options.add_argument('--ignore-ssl-errors')
+        driver = webdriver.Remote(
+            command_executor=webdriver_url,
+            options=chrome_options
+        )
+
+        # driver = webdriver.Chrome(options=chrome_options)
+
+        driver.set_window_size(1500, 2500)
+        return driver
+    except Exception as e:
+        print(f"Error creating driver: {e}")
+        raise e
+
+######################################################################
+
+
 delete_output_files()
-
-products = []
-
-chrome_options = Options()
-chrome_options.add_argument("--headless")
-chrome_options.add_argument("--lang=es-ES")
-chrome_options.add_argument("--incognito")
-chrome_options.add_argument("--window-size=1500,1500")
-chrome_options.add_argument("--force-device-scale-factor=0.5")
-chrome_options.add_argument(
-    "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36"
-)
-chrome_options.add_argument("--disable-blink-features=AutomationControlled")
-chrome_options.add_argument("--disable-infobars")
-
-driver = webdriver.Chrome(options=chrome_options)
-# driver = undetected_chromedriver.Chrome(options=chrome_options)
-
-set_cp(driver, cp)
-scrap_categories(driver, products, output_tmp_file)
+scrap_categories(products, output_tmp_file)
 os.rename(output_tmp_file, output_file)
-
 driver.quit()
 driver = None
 
