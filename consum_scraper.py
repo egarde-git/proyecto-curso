@@ -1,5 +1,5 @@
-import argparse
 import os
+import re
 import sys
 import time
 import subprocess
@@ -10,6 +10,8 @@ try:
     from selenium.webdriver.chrome.options import Options
     from selenium.webdriver.common.by import By
     from selenium.webdriver.common.keys import Keys
+    from selenium.webdriver.support.ui import WebDriverWait
+    from selenium.webdriver.support import expected_conditions as EC
     from selenium import webdriver
     # import undetected_chromedriver
 except ImportError:
@@ -24,14 +26,17 @@ except ImportError:
     from selenium.webdriver.chrome.options import Options
     from selenium.webdriver.common.by import By
     from selenium.webdriver.common.keys import Keys
+    from selenium.webdriver.support.ui import WebDriverWait
+    from selenium.webdriver.support import expected_conditions as EC
     from selenium import webdriver
     # import undetected_chromedriver
 
 # Install the latest version of chromedriver
-chromedriver_autoinstaller.install()
+# chromedriver_autoinstaller.install()
 
 ######################################################################
 
+import argparse
 parser = argparse.ArgumentParser(description="Consum Scraper")
 parser.add_argument('--output_directory', type=str,
                     default=".", help='Output directory for CSV file')
@@ -49,7 +54,6 @@ output_file = os.path.join(
 )
 output_tmp_file = f"{output_file}.tmp"
 print(f"Output file: {output_file}")
-
 
 ######################################################################
 
@@ -106,7 +110,7 @@ def export_product(file_name, product):
         )
 
 
-def store_product(product_id, product_name, product_price, category1, category2, category3, is_on_promotion, product_url, output_file):
+def store_product(product_id, product_name, product_price, category1, category2, category3, category4, is_on_promotion, product_url, output_file):
     existing_name = False
     for product in products:
         if product["name"] == product_name:
@@ -132,7 +136,8 @@ def store_product(product_id, product_name, product_price, category1, category2,
         "url": product_url,
         "category_name_1": category1,
         "category_name_2": category2,
-        "category_name_3": category3
+        "category_name_3": category3,
+        "category_name_4": category4
     })
 
     return True
@@ -153,14 +158,22 @@ def reject_cookies(driver):
         pass
 
 
-def navigate(driver, url):
+def navigate(driver, url, wait_for_xpath=None):
     print(f"Navigating to {url}")
     driver.get(url)
-    time.sleep(5)
+    if wait_for_xpath is not None:
+        try:
+            WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.XPATH, wait_for_xpath))
+            )
+        except:
+            time.sleep(5)
+    else:
+        time.sleep(5)
     reject_cookies(driver)
 
 
-def scrap_products(driver, category1, category2, category3, output_file):
+def scrap_page(driver, category1, category2, category3, category4, output_file):
     # <li data-test-id="product-card-list-item" style="" class="product-card-list__item-container">
     productElements = driver.find_elements(By.XPATH, '//cmp-widget-product')
     print(f"{len(productElements)} products found")
@@ -221,55 +234,16 @@ def scrap_products(driver, category1, category2, category3, output_file):
             is_on_promotion = False
 
         if product_name and product_price:
-            if store_product(product_id, product_name, product_price, category1, category2, category3, is_on_promotion, product_url, output_file):
+            if store_product(product_id, product_name, product_price, category1, category2, category3, category4, is_on_promotion, product_url, output_file):
                 products_scrapped += 1
 
     return products_scrapped
 
 
-def find_category_1_elements(driver):
+def scrap_categories(driver):
     try:
-        # <cmp-panel class="left-panel__subgroups ng-tns-c387054665-47 ng-star-inserted" style="">
-        category1_container = driver.find_elements(By.XPATH, '//cmp-panel')[0]
-        # <li class="element-2811 ng-star-inserted element-list__ul--active">
-        return category1_container.find_elements(By.XPATH, ".//li[contains(@class, 'ng-star-inserted')]")
-    except Exception as e:
-        print("!!! Error finding category 1 elements")
-        # print(e)
+        final_categories = []
 
-
-def find_category_2_elements(driver, category1_element):
-    try:
-        webdriver.ActionChains(driver).move_to_element(
-            category1_element).perform()
-        time.sleep(0.5)
-
-        # <cmp-panel class="left-panel__subgroups ng-tns-c387054665-47 ng-star-inserted" style="">
-        category2_container = driver.find_elements(By.XPATH, '//cmp-panel')[1]
-        # <li class="element-2811 ng-star-inserted element-list__ul--active">
-        return category2_container.find_elements(By.XPATH, ".//li[contains(@class, 'ng-star-inserted')]")
-    except Exception as e:
-        print("!!! Error finding category 2 elements")
-        # print(e)
-
-
-def find_category_3_elements(driver, category2_element):
-    try:
-        webdriver.ActionChains(driver).move_to_element(
-            category2_element).perform()
-        time.sleep(0.5)
-
-        # <cmp-panel class="left-panel__subgroups ng-tns-c387054665-47 ng-star-inserted" style="">
-        category3_container = driver.find_elements(By.XPATH, '//cmp-panel')[2]
-        # <li class="element-2811 ng-star-inserted element-list__ul--active">
-        return category3_container.find_elements(By.XPATH, ".//li[contains(@class, 'ng-star-inserted')]")
-    except Exception as e:
-        print("!!! Error finding category 3 elements")
-        # print(e)
-
-
-def scrap_categories(driver, products, output_file):
-    try:
         navigate(driver, "https://tienda.consum.es/es")
         try:
             # <button data-test-id="mobile-category-button" class="category-button__mobile dia-icon-dehaze" aria-label="categories list menú button">
@@ -282,16 +256,20 @@ def scrap_categories(driver, products, output_file):
             print(e)
             exit(1)
 
-        categories = []
+        ### CATEGORIES 1 ###
 
-        category1_elements = find_category_1_elements(driver)
+        category1_elements = driver.find_elements(
+            By.XPATH, "//cmp-panel//li[contains(@class, 'ng-star-inserted')]")
         print(f"{len(category1_elements)} categories1 found")
+
+        categories1 = []
         for category1_element in category1_elements:
             try:
-                # <div class="triple-element-block__center element-list__text selectedItem">Despensa</div>
-                category1_name = category1_element.find_element(
-                    By.XPATH, './/div[contains(@class, "element-list__text")]').get_attribute("innerText").strip()
+                # <a class="element-list__link ng-star-inserted element-list__link--active" href="https://tienda.consum.es/es/c/despensa/2811">
+                category1_element = category1_element.find_element(
+                    By.XPATH, './/a')
 
+                category1_name = category1_element.text.strip()
                 if category1_name.startswith("Momentos Consum"):
                     continue
                 if category1_name.startswith("Recetas"):
@@ -303,80 +281,162 @@ def scrap_categories(driver, products, output_file):
                 if category1_name.startswith("Nuestras marcas"):
                     continue
 
-                print(f"Found category1: {category1_name}")
+                categories1.append({
+                    "url": category1_element.get_attribute("href"),
+                    "category1_name": category1_name
+                })
+                print(
+                    f"Non final category 1: {categories1[-1]['category1_name']}")
+            except Exception as e:
+                print(e)
+                continue
 
-                category2_elements = find_category_2_elements(
-                    driver, category1_element)
+        ### CATEGORIES 2 ###
+
+        categories2 = []
+        for category1 in categories1:
+            try:
+                navigate(driver, category1['url'],
+                         '//div[@id="grid-filter-categories"]//a')
+
+                # <div id="grid-filter-categories" class="ng-star-inserted">...
+                # <a class="u-title u-pointer flex-grow-1" href="https://tienda.consum.es/es/c/bebidas/aguas/2482">Aguas</a>
+                category2_elements = driver.find_elements(
+                    By.XPATH, '//div[@id="grid-filter-categories"]//a')
                 print(f"{len(category2_elements)} categories2 found")
                 for category2_element in category2_elements:
                     try:
-                        # <div class="triple-element-block__center element-list__text selectedItem">Panes y tostadas</div>
-                        category2_name = category2_element.find_element(
-                            By.XPATH, './/div[contains(@class, "element-list__text")]').get_attribute("innerText").strip()
-
+                        categories2.append({
+                            "url": category2_element.get_attribute("href"),
+                            "category1_name": category1.get("category1_name", ""),
+                            "category2_name": category2_element.text
+                        })
                         print(
-                            f"Found category2: {category1_name} > {category2_name}")
-
-                        category3_elements = find_category_3_elements(
-                            driver, category2_element)
-                        print(f"{len(category3_elements)} categories3 found")
-                        for category3_element in category3_elements:
-                            try:
-                                # <div class="triple-element-block__center element-list__text selectedItem">Pan de hamburguesa, hot dog y wraps</div>
-                                category3_name = category3_element.find_element(
-                                    By.XPATH, './/div[contains(@class, "element-list__text")]').get_attribute("innerText").strip()
-
-                                # <a class="element-list__link ng-star-inserted element-list__link--active" href="https://tienda.consum.es/es/c/despensa/panes-y-tostadas/pan-de-hamburguesa-hot-dog-y-wraps/5160?_gl=1*tyo64r*_up*MQ..*_ga*ODMyNzE5Mzg1LjE3NTAzNTYzMjc.*_ga_GB6KBC7QDN*czE3NTAzNTYzMjckbzEkZzAkdDE3NTAzNTYzMjckajYwJGwwJGgxMjg5NjI2NjI5">
-                                category3_url = category3_element.find_element(
-                                    By.XPATH, './/a[contains(@class, "element-list__link")]').get_attribute("href").strip()
-
-                                print(
-                                    f"Found category3: {category1_name} > {category2_name} > {category3_name}")
-
-                                categories.append({
-                                    "category1_name": category1_name,
-                                    "category2_name": category2_name,
-                                    "category3_name": category3_name,
-                                    "category3_url": category3_url
-                                })
-                            except Exception as e:
-                                print("!!! Error finding category3 element")
-                                # print(e)
-                                continue
-
+                            f"Non final category 2: {categories2[-1]['category1_name']} > {categories2[-1]['category2_name']}")
                     except Exception as e:
-                        print("!!! Error finding category2 element")
-                        # print(e)
+                        print(e)
+                        continue
+            except Exception as e:
+                print(e)
+                continue
+
+        ### CATEGORIES 3 ###
+
+        categories3 = []
+        for category2 in categories2:
+            try:
+                navigate(driver, category2['url'],
+                         '//div[@id="grid-filter-categories"]//a')
+
+                # <div id="grid-filter-categories" class="ng-star-inserted">...
+                # <a class="u-title u-pointer flex-grow-1" href="https://tienda.consum.es/es/c/bebidas/aguas/agua-con-gas/1691">Agua con gas</a>
+                category3_elements = driver.find_elements(
+                    By.XPATH, '//div[@id="grid-filter-categories"]//a')
+                print(f"{len(category3_elements)} categories3 found")
+
+                # check if category3_elements[0] are actually category 2
+                if len(category3_elements) > 0 and re.fullmatch(r".*/c/([^/]+/){2}[^/]+", category3_elements[0].get_attribute("href")):
+                    final_categories.append({
+                        "url": category2.get("url", ""),
+                        "category1_name": category2.get("category1_name", ""),
+                        "category2_name": category2.get("category2_name", ""),
+                        "category3_name": "",
+                        "category4_name": ""
+                    })
+                    print(
+                        f"Final category 2: {final_categories[-1]['category1_name']} > {final_categories[-1]['category2_name']}")
+                    continue
+
+                for category3_element in category3_elements:
+                    try:
+                        categories3.append({
+                            "url": category3_element.get_attribute("href"),
+                            "category1_name": category2.get("category1_name", ""),
+                            "category2_name": category2.get("category2_name", ""),
+                            "category3_name": category3_element.text,
+                            "category4_name": ""
+                        })
+                        print(
+                            f"Non final category 3: {categories3[-1]['category1_name']} > {categories3[-1]['category2_name']} > {categories3[-1]['category3_name']}")
+                    except Exception as e:
+                        print(e)
+                        continue
+            except Exception as e:
+                print(e)
+                continue
+
+        ### CATEGORIES 3 ###
+
+        for category3 in categories3:
+            try:
+                navigate(driver, category3['url'])
+
+                # <div id="grid-filter-categories" class="ng-star-inserted">...
+                # <a class="u-title u-pointer flex-grow-1" href="https://tienda.consum.es/es/c/bebidas/aguas/agua-con-gas/1691">Agua con gas</a>
+                category4_elements = driver.find_elements(
+                    By.XPATH, '//div[@id="grid-filter-categories"]//a')
+                print(f"{len(category4_elements)} categories4 found")
+
+                # check if category4_elements[0] are actually category 3
+                if len(category4_elements) > 0 and re.fullmatch(r".*/c/([^/]+/){3}[^/]+", category4_elements[0].get_attribute("href")):
+                    final_categories.append({
+                        "url": category3.get("url", ""),
+                        "category1_name": category3.get("category1_name", ""),
+                        "category2_name": category3.get("category2_name", ""),
+                        "category3_name": category3.get("category3_name", ""),
+                        "category4_name": ""
+                    })
+                    print(
+                        f"Final category 3: {final_categories[-1]['category1_name']} > {final_categories[-1]['category2_name']} > {final_categories[-1]['category3_name']}")
+                    continue
+
+                for category4_element in category4_elements:
+                    try:
+                        final_categories.append({
+                            "url": category4_element.get_attribute("href"),
+                            "category1_name": category3.get("category1_name", ""),
+                            "category2_name": category3.get("category2_name", ""),
+                            "category3_name": category3.get("category3_name", ""),
+                            "category4_name": category4_element.text
+                        })
+                        print(
+                            f"Final category 4: {final_categories[-1]['category1_name']} > {final_categories[-1]['category2_name']} > {final_categories[-1]['category3_name']} > {final_categories[-1]['category4_name']}")
+                    except Exception as e:
+                        print(e)
                         continue
 
             except Exception as e:
-                print("!!! Error finding category1 element")
-                # print(e)
+                print(e)
                 continue
 
+    except Exception as e:
+        print(e)
+
+    return final_categories
+
+
+def scrap_products(driver, categories, products, output_file):
+    try:
         category_count = 0
         for category in categories:
             try:
                 category_count += 1
-                navigate(driver, category['category3_url'])
 
                 print(f"\n**************************************************")
+                navigate(driver, category['url'], '//cmp-widget-product')
                 print(f"Category1 {category['category1_name']}")
                 print(f"Category2 {category['category2_name']}")
                 print(f"Category3 {category['category3_name']}")
+                print(f"Category4 {category['category4_name']}")
                 print(f"Count {category_count}/{len(categories)}")
-                print(f"**************************************************\n")
+                print(f"--------------------------------------------------")
 
                 page = 0
                 while True:
-                    products_scrapped = scrap_products(
-                        driver, category['category1_name'], category['category2_name'], category['category3_name'], output_file)
+                    products_scrapped = scrap_page(
+                        driver, category['category1_name'], category['category2_name'], category['category3_name'], category['category4_name'], output_file)
 
                     print(f"--------------------------------------------------")
-                    print(f"Category1 {category['category1_name']}")
-                    print(f"Category2 {category['category2_name']}")
-                    print(f"Category3 {category['category3_name']}")
-                    print(f"Category count {category_count}/{len(categories)}")
                     print(f"{products_scrapped} products scrapped in page {page}")
                     print(f"--------------------------------------------------")
 
@@ -463,11 +523,20 @@ chrome_options.add_argument(
 chrome_options.add_argument("--disable-blink-features=AutomationControlled")
 chrome_options.add_argument("--disable-infobars")
 
+# Disable images to speed up loading
+chrome_prefs = {
+    "profile.default_content_setting_values": {
+        "images": 2  # 2 significa que les imatges no es carregaran
+    }
+}
+chrome_options.add_experimental_option("prefs", chrome_prefs)
+
 driver = webdriver.Chrome(options=chrome_options)
 # driver = undetected_chromedriver.Chrome(options=chrome_options)
 
 set_cp(driver, cp)
-scrap_categories(driver, products, output_tmp_file)
+categories = scrap_categories(driver)
+scrap_products(driver, categories, products, output_tmp_file)
 os.rename(output_tmp_file, output_file)
 
 driver.quit()
