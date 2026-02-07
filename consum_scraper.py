@@ -110,18 +110,13 @@ def export_product(file_name, product):
         )
 
 
-def store_product(product_id, product_name, product_price, category1, category2, category3, category4, is_on_promotion, product_url, output_file):
-    existing_name = False
+def store_product(product_id, product_name, product_price, category1, category2, category3, category4, is_on_promotion, product_url, brand, ean, output_file):
     for product in products:
         if product["name"] == product_name:
-            existing_name = True
             if product["id"] == product_id:
                 return False
-    if existing_name:
-        print(
-            f"{product_id} - {product_name} - {product_price} - {is_on_promotion} - Existing name")
-    else:
-        print(f"{product_id} - {product_name} - {product_price} - {is_on_promotion}")
+
+    print(f"{product_id} - {product_name} - {product_price}{' - ' + brand if brand else ''}{' - ' + ean if ean else ''}{' - Promoted' if is_on_promotion else ''}")
 
     products.append({
         "id": product_id,
@@ -137,7 +132,9 @@ def store_product(product_id, product_name, product_price, category1, category2,
         "category_name_1": category1,
         "category_name_2": category2,
         "category_name_3": category3,
-        "category_name_4": category4
+        "category_name_4": category4,
+        "brand": brand,
+        "ean": ean
     })
 
     return True
@@ -163,7 +160,7 @@ def navigate(driver, url, wait_for_xpath=None):
     driver.get(url)
     if wait_for_xpath is not None:
         try:
-            WebDriverWait(driver, 10).until(
+            WebDriverWait(driver, 5).until(
                 EC.presence_of_element_located((By.XPATH, wait_for_xpath))
             )
         except:
@@ -183,18 +180,16 @@ def scrap_page(driver, category1, category2, category3, category4, output_file):
         try:
             # <h1 class="u-title-3">Bebida de Avena Mango y Plátano
             product_name = productElement.find_element(
-                By.XPATH, './/h1[@class="u-title-3"]').get_attribute("innerText").strip()
+                By.XPATH, './/h3[@class="u-title-3"]').get_attribute("innerText").strip()
         except Exception as e:
-            # print("!!! Error finding product name")
-            # print(e)
+            print("!!! Error finding product name")
+            print(e)
             continue
 
         try:
             # <p class="u-size--20">VIA NATURE</p>
             product_brand = productElement.find_element(
                 By.XPATH, './/p[@class="u-size--20"]').get_attribute("innerText").strip()
-            # If the product brand is not empty, prepend it to the product name
-            product_name = f"{product_brand} {product_name}"
         except Exception as e:
             # print("!!! Error finding product brand")
             # print(e)
@@ -208,8 +203,8 @@ def scrap_page(driver, category1, category2, category3, category4, output_file):
             product_price = productElement.find_element(
                 By.XPATH, './/span[@class="product-info-price__price"]').get_attribute("innerText").strip()
         except Exception as e:
-            # print("!!! Error finding product price")
-            # print(e)
+            print("!!! Error finding product price")
+            print(e)
             continue
 
         try:
@@ -234,7 +229,7 @@ def scrap_page(driver, category1, category2, category3, category4, output_file):
             is_on_promotion = False
 
         if product_name and product_price:
-            if store_product(product_id, product_name, product_price, category1, category2, category3, category4, is_on_promotion, product_url, output_file):
+            if store_product(product_id, product_name, product_price, category1, category2, category3, category4, is_on_promotion, product_url, product_brand, "", output_file):
                 products_scrapped += 1
 
     return products_scrapped
@@ -270,6 +265,8 @@ def scrap_categories(driver):
                     By.XPATH, './/a')
 
                 category1_name = category1_element.text.strip()
+                if category1_name.startswith("Navidad"):
+                    continue
                 if category1_name.startswith("Momentos Consum"):
                     continue
                 if category1_name.startswith("Recetas"):
@@ -365,7 +362,7 @@ def scrap_categories(driver):
                 print(e)
                 continue
 
-        ### CATEGORIES 3 ###
+        ### CATEGORIES 4 ###
 
         for category3 in categories3:
             try:

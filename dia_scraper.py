@@ -1,34 +1,34 @@
 import argparse
-from selenium import webdriver
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.options import Options
 import os
 import sys
-
-# Install dependencies
-if len(sys.argv) > 1 and sys.argv[1] == "--install":
-    import subprocess
-    requirements = [
-        "selenium",
-        "undetected-chromedriver",
-        "chromedriver-autoinstaller"
-    ]
-    for pkg in requirements:
-        print(f"Installing {pkg}...")
-        subprocess.check_call([sys.executable, "-m", "pip", "install", pkg])
-    print("All dependencies installed.")
-    sys.exit(0)
-
-######################################################################
-
 import time
-import chromedriver_autoinstaller
+import subprocess
+
+try:
+    import requests
+    import chromedriver_autoinstaller
+    from selenium.webdriver.chrome.options import Options
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.common.keys import Keys
+    from selenium import webdriver
+    # import undetected_chromedriver
+except ImportError:
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "requests"])
+    subprocess.check_call([sys.executable, "-m", "pip", "install", "selenium"])
+    subprocess.check_call([sys.executable, "-m", "pip",
+                          "install", "undetected_chromedriver"])
+    subprocess.check_call([sys.executable, "-m", "pip",
+                          "install", "chromedriver_autoinstaller"])
+    import requests
+    import chromedriver_autoinstaller
+    from selenium.webdriver.chrome.options import Options
+    from selenium.webdriver.common.by import By
+    from selenium.webdriver.common.keys import Keys
+    from selenium import webdriver
+    # import undetected_chromedriver
+
 # Install the latest version of chromedriver
 chromedriver_autoinstaller.install()
-
-# drivers
-# import undetected_chromedriver
 
 ######################################################################
 
@@ -189,7 +189,7 @@ def scrap_products(driver, category1, category2, output_file):
             is_on_promotion = False
 
         if product_name and product_price:
-            if store_product(product_id, product_name, product_price, category1, category2, None, is_on_promotion, product_url, output_file):
+            if store_product(product_id, product_name, product_price, category1, category2, '', is_on_promotion, product_url, output_file):
                 products_scrapped += 1
 
     return products_scrapped
@@ -462,15 +462,17 @@ def create_driver():
         }
         chrome_options.add_experimental_option("prefs", chrome_prefs)
 
+        """
         webdriver_url = f"https://{os.environ['PROXY_USERNAME']}:{os.environ['PROXY_PASSWORD']}@{os.environ['PROXY_HOST']}:{os.environ['PROXY_PORT']}"
         chrome_options.add_argument('--ignore-certificate-errors')
         chrome_options.add_argument('--ignore-ssl-errors')
         driver = webdriver.Remote(
-            command_executor=webdriver_url,
-            options=chrome_options
+            command_executor = webdriver_url,
+            options = chrome_options
         )
+        """
 
-        # driver = webdriver.Chrome(options=chrome_options)
+        driver = webdriver.Chrome(options=chrome_options)
 
         driver.set_window_size(1500, 2500)
         return driver
