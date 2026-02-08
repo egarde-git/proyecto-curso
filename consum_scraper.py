@@ -178,9 +178,11 @@ def scrap_page(driver, category1, category2, category3, category4, output_file):
     products_scrapped = 0
     for productElement in productElements:
         try:
-            # <h1 class="u-title-3">Bebida de Avena Mango y Plátano
+            # <h3 class="u-title-3">Bebida de Avena Mango y Plátano
+            # or
+            # <h3 class="u-size--24 mt-4">Corazón de Canela
             product_name = productElement.find_element(
-                By.XPATH, './/h3[@class="u-title-3"]').get_attribute("innerText").strip()
+                By.XPATH, './/h3').get_attribute("innerText").strip()
         except Exception as e:
             print("!!! Error finding product name")
             print(e)
@@ -421,6 +423,7 @@ def scrap_products(driver, categories, products, output_file):
 
                 print(f"\n**************************************************")
                 navigate(driver, category['url'], '//cmp-widget-product')
+                time.sleep(2)
                 print(f"Category1 {category['category1_name']}")
                 print(f"Category2 {category['category2_name']}")
                 print(f"Category3 {category['category3_name']}")
