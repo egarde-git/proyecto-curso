@@ -3,6 +3,7 @@ import re
 import sys
 import time
 import subprocess
+import json
 
 try:
     import requests
@@ -77,6 +78,12 @@ def delete_output_files():
 
 
 def export_product(file_name, product):
+    # clean product data
+    for key in product:
+        if isinstance(product[key], str):
+            product[key] = product[key].replace("\n", " ").replace(
+                "\r", " ").replace("\t", " ").strip()
+
     # if no file exists, create it with headers
     if not os.path.exists(file_name):
         with open(file_name, "w", encoding="utf-8") as csv_file:
@@ -110,14 +117,20 @@ def export_product(file_name, product):
         )
 
 
-def store_product(product_id, product_name, product_price, category1, category2, category3, category4, is_on_promotion, product_url, brand, ean, output_file):
+def is_product_stored(product_id, product_name):
     for product in products:
         if product["name"] == product_name:
             if product["id"] == product_id:
-                return False
+                return True
+    return False
 
-    print(f"{product_id} - {product_name} - {product_price}{' - ' + brand if brand else ''}{' - ' + ean if ean else ''}{' - Promoted' if is_on_promotion else ''}")
 
+def store_product(product_id, product_name, product_price, category1, category2, category3, category4, promotions, product_url, brand, ean, output_file):
+    if is_product_stored(product_id, product_name):
+        return False
+
+    print(
+        f"{product_id} - {product_name} - {product_price}{' - ' + brand if brand else ''}{' - ' + ean if ean else ''}{' - Promoted (' + promotions[0] + ')' if len(promotions) > 0 else ''}")
     products.append({
         "id": product_id,
         "name": product_name
@@ -127,14 +140,16 @@ def store_product(product_id, product_name, product_price, category1, category2,
         "id": product_id,
         "name": product_name,
         "price": product_price,
-        "is_on_promotion": is_on_promotion,
+        "is_on_promotion": True if len(promotions) > 0 else False,
         "url": product_url,
         "category_name_1": category1,
         "category_name_2": category2,
         "category_name_3": category3,
         "category_name_4": category4,
         "brand": brand,
-        "ean": ean
+        "ean": ean,
+        "promotion_1": promotions[0] if len(promotions) > 0 else "",
+        "promotion_2": promotions[1] if len(promotions) > 1 else "",
     })
 
     return True
@@ -221,17 +236,17 @@ def scrap_page(driver, category1, category2, category3, category4, output_file):
             pass
 
         try:
-            # <div class="product-info-promotions ng-star-inserted">
-            productElement.find_element(
-                By.XPATH, './/div[contains(@class, "product-info-promotions")]')
-            is_on_promotion = True
+            promotions = []
+            # <span class="product-info-promotions__column--title"> Ahora más barato <!----><!----><!----><!----><!----><!----><!----><!----></span>
+            promotions.append(productElement.find_element(
+                By.XPATH, './/div[contains(@class, "product-info-promotions")]').get_attribute("innerText").replace("\n", " ").strip())
         except Exception as e:
-            # print("!!! Error finding promotion element:")
+            # print("!!! Error finding promotions")
             # print(e)
-            is_on_promotion = False
+            pass
 
         if product_name and product_price:
-            if store_product(product_id, product_name, product_price, category1, category2, category3, category4, is_on_promotion, product_url, product_brand, "", output_file):
+            if store_product(product_id, product_name, product_price, category1, category2, category3, category4, promotions, product_url, product_brand, "", output_file):
                 products_scrapped += 1
 
     return products_scrapped
