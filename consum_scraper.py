@@ -91,7 +91,7 @@ def export_product(file_name, product):
                 "timestamp\tpostal_code\tid\tname\tprice\tis_on_promotion\turl\timage_file\t"
                 "category_name_1\tcategory_id_1\tcategory_name_2\tcategory_id_2\t"
                 "category_name_3\tcategory_id_3\tcategory_name_4\tcategory_id_4\t"
-                "category_name_5\tcategory_id_5\n"
+                "category_name_5\tcategory_id_5\nbrand\tean\tpromotion_1\tpromotion_2\n"
             )
 
     with open(file_name, "a", encoding="utf-8") as csv_file:
@@ -113,7 +113,11 @@ def export_product(file_name, product):
             f"{product.get('category_name_4', '')}\t"
             f"{product.get('category_id_4', '')}\t"
             f"{product.get('category_name_5', '')}\t"
-            f"{product.get('category_id_5', '')}\n"
+            f"{product.get('category_id_5', '')}\t"
+            f"{product.get('brand', '')}\t"
+            f"{product.get('ean', '')}\t"
+            f"{product.get('promotion_1', '')}\t"
+            f"{product.get('promotion_2', '')}\n"
         )
 
 

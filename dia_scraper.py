@@ -1,8 +1,9 @@
-import argparse
 import os
+import re
 import sys
 import time
 import subprocess
+import json
 
 try:
     import requests
@@ -10,6 +11,8 @@ try:
     from selenium.webdriver.chrome.options import Options
     from selenium.webdriver.common.by import By
     from selenium.webdriver.common.keys import Keys
+    from selenium.webdriver.support.ui import WebDriverWait
+    from selenium.webdriver.support import expected_conditions as EC
     from selenium import webdriver
     # import undetected_chromedriver
 except ImportError:
@@ -24,14 +27,17 @@ except ImportError:
     from selenium.webdriver.chrome.options import Options
     from selenium.webdriver.common.by import By
     from selenium.webdriver.common.keys import Keys
+    from selenium.webdriver.support.ui import WebDriverWait
+    from selenium.webdriver.support import expected_conditions as EC
     from selenium import webdriver
     # import undetected_chromedriver
 
 # Install the latest version of chromedriver
-chromedriver_autoinstaller.install()
+# chromedriver_autoinstaller.install()
 
 ######################################################################
 
+import argparse
 parser = argparse.ArgumentParser(description="DIA Scraper")
 parser.add_argument('--output_directory', type=str,
                     default=".", help='Output directory for CSV file')
@@ -76,6 +82,12 @@ def delete_output_files():
 
 
 def export_product(file_name, product):
+    # clean product data
+    for key in product:
+        if isinstance(product[key], str):
+            product[key] = product[key].replace("\n", " ").replace(
+                "\r", " ").replace("\t", " ").strip()
+
     # if no file exists, create it with headers
     if not os.path.exists(file_name):
         with open(file_name, "w", encoding="utf-8") as csv_file:
@@ -83,7 +95,7 @@ def export_product(file_name, product):
                 "timestamp\tpostal_code\tid\tname\tprice\tis_on_promotion\turl\timage_file\t"
                 "category_name_1\tcategory_id_1\tcategory_name_2\tcategory_id_2\t"
                 "category_name_3\tcategory_id_3\tcategory_name_4\tcategory_id_4\t"
-                "category_name_5\tcategory_id_5\n"
+                "category_name_5\tcategory_id_5\nbrand\tean\tpromotion_1\tpromotion_2\n"
             )
 
     with open(file_name, "a", encoding="utf-8") as csv_file:
@@ -105,23 +117,28 @@ def export_product(file_name, product):
             f"{product.get('category_name_4', '')}\t"
             f"{product.get('category_id_4', '')}\t"
             f"{product.get('category_name_5', '')}\t"
-            f"{product.get('category_id_5', '')}\n"
+            f"{product.get('category_id_5', '')}\t"
+            f"{product.get('brand', '')}\t"
+            f"{product.get('ean', '')}\t"
+            f"{product.get('promotion_1', '')}\t"
+            f"{product.get('promotion_2', '')}\n"
         )
 
 
-def store_product(product_id, product_name, product_price, category1, category2, category3, is_on_promotion, product_url, output_file):
-    existing_name = False
+def is_product_stored(product_id, product_name):
     for product in products:
         if product["name"] == product_name:
-            existing_name = True
             if product["id"] == product_id:
-                return False
-    if existing_name:
-        print(
-            f"{product_id} - {product_name} - {product_price} - {is_on_promotion} - Existing name")
-    else:
-        print(f"{product_id} - {product_name} - {product_price} - {is_on_promotion}")
+                return True
+    return False
 
+
+def store_product(product_id, product_name, product_price, category1, category2, category3, category4, promotions, product_url, brand, ean, output_file):
+    if is_product_stored(product_id, product_name):
+        return False
+
+    print(
+        f"{product_id} - {product_name} - {product_price}{' - ' + brand if brand else ''}{' - ' + ean if ean else ''}{' - Promoted (' + promotions[0] + ')' if len(promotions) > 0 else ''}")
     products.append({
         "id": product_id,
         "name": product_name
@@ -131,11 +148,16 @@ def store_product(product_id, product_name, product_price, category1, category2,
         "id": product_id,
         "name": product_name,
         "price": product_price,
-        "is_on_promotion": is_on_promotion,
+        "is_on_promotion": True if len(promotions) > 0 else False,
         "url": product_url,
         "category_name_1": category1,
         "category_name_2": category2,
-        "category_name_3": category3
+        "category_name_3": category3,
+        "category_name_4": category4,
+        "brand": brand,
+        "ean": ean,
+        "promotion_1": promotions[0] if len(promotions) > 0 else "",
+        "promotion_2": promotions[1] if len(promotions) > 1 else "",
     })
 
     return True
@@ -179,17 +201,17 @@ def scrap_products(driver, category1, category2, output_file):
             continue
 
         try:
+            promotions = []
             # <p class="product-special-offer__discount" data-test-id="product-special-offer-discount-percentage-discount">13% dto.</p>
-            productElement.find_element(
-                By.XPATH, './/p[@class="product-special-offer__discount"]')
-            is_on_promotion = True
+            promotions.append(productElement.find_element(
+                By.XPATH, './/p[@class="product-special-offer__discount"]').get_attribute("innerText").strip())
         except Exception as e:
-            # print("!!! Error finding promotion element:")
+            # print("!!! Error finding promotions")
             # print(e)
-            is_on_promotion = False
+            pass
 
         if product_name and product_price:
-            if store_product(product_id, product_name, product_price, category1, category2, '', is_on_promotion, product_url, output_file):
+            if store_product(product_id, product_name, product_price, category1, category2, "", "", promotions, product_url, "", "", output_file):
                 products_scrapped += 1
 
     return products_scrapped
