@@ -1,3 +1,6 @@
+> **⚠️ NOTA PARA REVISIÓN**  
+> He invitado a **mouredev@gmail.com** como colaborador del repositorio de GitHub para que pueda acceder y revisarlo.
+
 # Descripción general del proyecto
 
 Este proyecto consiste en el desarrollo de una aplicación en Python orientada al **análisis y estudio de retailers online** mediante técnicas de **Web Scraping** y posterior almacenamiento de la información en una **base de datos MySQL**.
