@@ -1,5 +1,5 @@
 > **⚠️ NOTA PARA REVISIÓN**  
-> He invitado a **mouredev@gmail.com** como colaborador del repositorio de GitHub para que pueda acceder y revisarlo.
+> Anteriormente invité a **mouredev@gmail.com** como colaborador porque el repositorio era privado, pero finalmente lo he hecho público para facilitar el acceso.
 
 # Descripción general del proyecto
 
