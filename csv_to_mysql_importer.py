@@ -1,5 +1,3 @@
-from pymysql import Error
-import pymysql
 import os
 import csv
 import shutil
@@ -48,6 +46,9 @@ def check_and_install_dependencies():
 
 # Instalar dependencias antes de importar
 check_and_install_dependencies()
+
+import pymysql
+from pymysql import Error
 
 
 def parse_arguments():
