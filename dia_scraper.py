@@ -1,3 +1,4 @@
+import argparse
 import os
 import re
 import sys
@@ -8,6 +9,7 @@ import json
 try:
     import requests
     import chromedriver_autoinstaller
+    from dotenv import load_dotenv
     from selenium.webdriver.chrome.options import Options
     from selenium.webdriver.common.by import By
     from selenium.webdriver.common.keys import Keys
@@ -19,11 +21,14 @@ except ImportError:
     subprocess.check_call([sys.executable, "-m", "pip", "install", "requests"])
     subprocess.check_call([sys.executable, "-m", "pip", "install", "selenium"])
     subprocess.check_call([sys.executable, "-m", "pip",
+                          "install", "python-dotenv"])
+    subprocess.check_call([sys.executable, "-m", "pip",
                           "install", "undetected_chromedriver"])
     subprocess.check_call([sys.executable, "-m", "pip",
                           "install", "chromedriver_autoinstaller"])
     import requests
     import chromedriver_autoinstaller
+    from dotenv import load_dotenv
     from selenium.webdriver.chrome.options import Options
     from selenium.webdriver.common.by import By
     from selenium.webdriver.common.keys import Keys
@@ -32,12 +37,14 @@ except ImportError:
     from selenium import webdriver
     # import undetected_chromedriver
 
+# Load environment variables
+load_dotenv()
+
 # Install the latest version of chromedriver
 # chromedriver_autoinstaller.install()
 
 ######################################################################
 
-import argparse
 parser = argparse.ArgumentParser(description="DIA Scraper")
 parser.add_argument('--output_directory', type=str,
                     default=".", help='Output directory for CSV file')
